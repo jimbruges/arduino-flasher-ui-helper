@@ -4,6 +4,10 @@ import json, os, pathlib, re, shutil, subprocess, sys
 root = pathlib.Path(__file__).resolve().parent.parent
 dest = pathlib.Path(sys.argv[1])
 dest.mkdir(parents=True, exist_ok=True)
+# Upstream license files can be read-only; allow repeat builds to replace them.
+for existing in dest.rglob('*'):
+    if existing.is_file():
+        existing.chmod(existing.stat().st_mode | 0o200)
 for name in ('LICENSE', 'NOTICE.md'):
     shutil.copy2(root / name, dest / name)
 shutil.copytree(root / 'LICENSES', dest / 'LICENSES', dirs_exist_ok=True)
