@@ -5,6 +5,7 @@ cd "$root"
 GO=${GO:-go}
 os=$($GO env GOOS)
 arch=$($GO env GOARCH)
+tools_dir=${TOOLS_DIR:-"$root/tools"}
 mkdir -p build
 case "$os" in
  darwin)
@@ -18,6 +19,7 @@ case "$os" in
 <key>CFBundleName</key><string>Arduino Flasher UI Helper</string>
 <key>CFBundleDisplayName</key><string>Arduino Flasher UI Helper</string>
 <key>CFBundleIdentifier</key><string>cc.jimbruges.arduino-flasher-ui-helper</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleExecutable</key><string>arduino-flasher-ui-helper</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
@@ -25,7 +27,8 @@ case "$os" in
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
-  if [ -d tools ]; then mkdir -p "$app/Contents/Resources/tools"; cp -R tools/. "$app/Contents/Resources/tools/"; fi
+  cp packaging/icons/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
+  if [ -d "$tools_dir" ]; then mkdir -p "$app/Contents/Resources/tools"; cp -R "$tools_dir"/. "$app/Contents/Resources/tools/"; fi
   # Bundle libusb for the digest helper, so the app works without Homebrew.
   packaged="$app/Contents/Resources/tools"
   if [ -x "$packaged/qdl-digest" ]; then
@@ -41,6 +44,7 @@ PLIST
   for tool in arduino-flasher-cli qdl qdl-digest; do
    if [ -f "$packaged/$tool" ]; then codesign --force --sign - "$packaged/$tool"; fi
   done
+  python3 scripts/check-mac-bundle.py "$app" --update-minimum
   codesign --force --deep --sign - "$app"
   printf 'Built %s\n' "$app"
  ;;
@@ -48,8 +52,18 @@ PLIST
   package="build/arduino-flasher-ui-helper-linux-$arch"
   mkdir -p "$package"
   $GO build -tags desktop,production,webkit2_41 -o "$package/arduino-flasher-ui-helper" .
-  if [ -d tools ]; then mkdir -p "$package/tools"; cp -R tools/. "$package/tools/"; fi
+  cp packaging/icons/app-icon.png "$package/app-icon.png"
+  cp packaging/arduino-flasher-ui-helper.desktop "$package/arduino-flasher-ui-helper.desktop"
+  if [ -d "$tools_dir" ]; then mkdir -p "$package/tools"; cp -R "$tools_dir"/. "$package/tools/"; fi
   printf 'Built %s\n' "$package"
  ;;
- *) echo 'Native Mac and Linux builds are supported.' >&2; exit 1 ;;
+ windows)
+  package="build/arduino-flasher-ui-helper-windows-$arch"
+  mkdir -p "$package"
+  CGO_ENABLED=0 $GO build -tags desktop,production -ldflags '-H windowsgui' -o "$package/arduino-flasher-ui-helper.exe" .
+  if [ -d "$tools_dir" ]; then mkdir -p "$package/tools"; cp -R "$tools_dir"/. "$package/tools/"; fi
+  cp packaging/WINDOWS.txt "$package/README.txt"
+  printf 'Built %s\n' "$package"
+ ;;
+ *) echo 'Mac, Linux and Windows builds are supported.'  >&2; exit 1 ;;
 esac

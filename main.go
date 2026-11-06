@@ -13,11 +13,15 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed frontend
 var assets embed.FS
+
+//go:embed packaging/icons/app-icon.png
+var appIcon []byte
 
 type App struct {
 	smokeReport string
@@ -52,7 +56,7 @@ func (a *App) Browse(kind string) (string, error) {
 	case "folder":
 		return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Choose a golden image or extracted factory image"})
 	case "save":
-		return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{Title: "Save golden image in a new folder", DefaultFilename: "golden-unoq"})
+		return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{Title: "Save golden image in a new folder", DefaultFilename: "golden-image"})
 	case "programmer":
 		return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Title: "Choose Firehose programmer", Filters: []runtime.FileFilter{{DisplayName: "Firehose programmer", Pattern: "*.elf"}}})
 	default:
@@ -88,11 +92,7 @@ func main() {
 	}
 	app := &App{engine: engine, smokeReport: *smoke}
 	frontend, _ := fs.Sub(assets, "frontend")
-	err = wails.Run(&options.App{Title: "Arduino Flasher UI Helper", Width: 1180, Height: 820, MinWidth: 920, MinHeight: 680, BackgroundColour: options.NewRGB(246, 247, 244), AssetServer: &assetserver.Options{Assets: frontend}, Bind: []interface{}{app}, OnStartup: app.Startup, OnDomReady: func(ctx context.Context) {
-		if app.smokeReport != "" {
-			runtime.WindowExecJS(ctx, `setTimeout(()=>{try{window.go.main.App.ReportUISmoke(JSON.stringify({stage:'dom-ready', title:document.title, error:document.getElementById('error')?.textContent, connection:document.getElementById('connection')?.textContent}));}catch(e){console.error(e)}},1000)`)
-		}
-	}, OnBeforeClose: func(ctx context.Context) bool {
+	err = wails.Run(&options.App{Title: "Arduino Flasher UI Helper", Width: 1180, Height: 820, MinWidth: 920, MinHeight: 680, Linux: &linux.Options{Icon: appIcon, ProgramName: "arduino-flasher-ui-helper", WebviewGpuPolicy: linux.WebviewGpuPolicyNever}, BackgroundColour: options.NewRGB(246, 247, 244), AssetServer: &assetserver.Options{Assets: frontend}, Bind: []interface{}{app}, OnStartup: app.Startup, OnBeforeClose: func(ctx context.Context) bool {
 		if !engine.Status().Running {
 			return false
 		}
@@ -117,7 +117,7 @@ func defaultTools() string {
 	executable, _ := os.Executable()
 	base := filepath.Dir(executable)
 	for _, path := range []string{filepath.Join(base, "..", "Resources", "tools"), filepath.Join(base, "tools"), "tools"} {
-		if info, err := os.Stat(filepath.Join(path, "arduino-flasher-cli")); err == nil && !info.IsDir() {
+		if info, err := os.Stat(filepath.Join(path, provision.ToolName("arduino-flasher-cli"))); err == nil && !info.IsDir() {
 			abs, _ := filepath.Abs(path)
 			return abs
 		}

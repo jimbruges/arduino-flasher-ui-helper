@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -337,6 +338,9 @@ func (e *Engine) runFactory(ctx context.Context, r Request, p Plan, logDir strin
 	if err != nil {
 		return nil, err
 	}
+	if bytes, ok := factoryProgramSpan(flash, xmls); ok {
+		e.event(Event{Kind: "data", Data: fmt.Sprintf("%.2f GiB programmed per board · %.2f GiB total (%d targets; USB bytes vary for sparse images)", float64(bytes)/(1<<30), float64(bytes)*float64(len(p.Targets))/(1<<30), len(p.Targets))})
+	}
 	// Always snapshot the source so upstream work cannot change the user's files.
 	shared := filepath.Join(work, "shared")
 	if err := copyFactory(ctx, flash, shared); err != nil {
@@ -425,4 +429,49 @@ func copyFactory(ctx context.Context, source, dest string) error {
 		_, err = io.Copy(out, &contextReader{ctx, in})
 		return errors.Join(err, out.Close())
 	})
+}
+
+// Declared program ranges express storage scale, not compressed or sparse USB bytes.
+func factoryProgramSpan(dir string, names []string) (uint64, bool) {
+	var total uint64
+	for _, name := range names {
+		if !strings.HasPrefix(name, "rawprogram") {
+			continue
+		}
+		f, err := os.Open(filepath.Join(dir, name))
+		if err != nil {
+			return 0, false
+		}
+		dec := xml.NewDecoder(f)
+		for {
+			token, err := dec.Token()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				f.Close()
+				return 0, false
+			}
+			element, ok := token.(xml.StartElement)
+			if !ok || element.Name.Local != "program" {
+				continue
+			}
+			attrs := map[string]string{}
+			for _, attr := range element.Attr {
+				attrs[attr.Name.Local] = attr.Value
+			}
+			if attrs["filename"] == "" {
+				continue
+			}
+			sectors, err1 := strconv.ParseUint(attrs["num_partition_sectors"], 10, 64)
+			sectorSize, err2 := strconv.ParseUint(attrs["SECTOR_SIZE_IN_BYTES"], 10, 64)
+			if err1 != nil || err2 != nil || sectorSize == 0 || sectors > (^uint64(0)-total)/sectorSize {
+				f.Close()
+				return 0, false
+			}
+			total += sectors * sectorSize
+		}
+		f.Close()
+	}
+	return total, total > 0
 }

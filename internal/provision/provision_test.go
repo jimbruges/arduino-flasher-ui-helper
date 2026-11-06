@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,9 @@ func TestFactoryMissingPayload(t *testing.T) {
 	}
 }
 func TestProcessGroupCancellation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix process-group test")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 	start := time.Now()
@@ -111,6 +115,9 @@ func TestGoldenSourceExcluded(t *testing.T) {
 }
 
 func TestFactoryBatchMixedResults(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix shell fixture")
+	}
 	root := t.TempDir()
 	image := filepath.Join(root, "image", "flash")
 	os.MkdirAll(image, 0700)

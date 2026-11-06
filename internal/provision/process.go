@@ -1,15 +1,11 @@
-//go:build darwin || linux
-
 package provision
 
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os/exec"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -60,27 +56,15 @@ func (s *lineSink) flush() {
 func runCommand(ctx context.Context, path string, args []string, dir string, onLine func(string)) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Dir = dir
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cleanup := configureCommand(cmd)
+	defer cleanup()
 	cmd.WaitDelay = 3 * time.Second
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return nil
-		}
-		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		if errors.Is(err, syscall.ESRCH) {
-			return nil
-		}
-		return err
-	}
 	state := &commandOutput{onLine: onLine}
 	stdout := &lineSink{state: state, capture: true}
 	stderr := &lineSink{state: state}
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	err := cmd.Run()
-	if cmd.Process != nil {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
 	stdout.flush()
 	stderr.flush()
 	if ctx.Err() != nil {

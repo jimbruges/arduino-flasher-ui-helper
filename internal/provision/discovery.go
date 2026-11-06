@@ -2,6 +2,7 @@ package provision
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"os"
@@ -42,6 +43,13 @@ func systemDevices(ctx context.Context) ([]Device, error) {
 			}
 			found = append(found, Device{Serial: "0x" + match[1], Product: strings.TrimSpace(string(product)), Path: path})
 		}
+	case "windows":
+		const script = `$ErrorActionPreference='Stop'; $items=@(Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match '^USB\\VID_05C6&PID_9008' -and $_.InstanceId -notmatch '&MI_[0-9A-F]{2}' } | ForEach-Object { $d=Get-PnpDeviceProperty -InstanceId $_.InstanceId -KeyName 'DEVPKEY_Device_BusReportedDeviceDesc'; [pscustomobject]@{ Product=[string]$d.Data; Path=$_.InstanceId } }); ConvertTo-Json -InputObject $items -Compress`
+		out, err := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).Output()
+		if err != nil {
+			return nil, err
+		}
+		return parseWindowsDevices(out)
 	case "darwin":
 		out, err := exec.CommandContext(ctx, "/usr/sbin/ioreg", "-a", "-r", "-c", "IOUSBHostDevice").Output()
 		if err != nil {
@@ -86,4 +94,20 @@ func systemDevices(ctx context.Context) ([]Device, error) {
 		return nil, fmt.Errorf("Device discovery is unsupported on %s.", runtime.GOOS)
 	}
 	return normalizeDevices(found)
+}
+
+func parseWindowsDevices(data []byte) ([]Device, error) {
+	var items []Device
+	data = []byte(strings.TrimPrefix(string(data), "\ufeff"))
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil, err
+	}
+	for i := range items {
+		match := sourceSerial.FindStringSubmatch(items[i].Product)
+		if len(match) != 2 {
+			return nil, fmt.Errorf("EDL device at %s has no selectable serial", items[i].Path)
+		}
+		items[i].Serial = "0x" + match[1]
+	}
+	return normalizeDevices(items)
 }

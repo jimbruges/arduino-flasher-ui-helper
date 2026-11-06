@@ -56,7 +56,7 @@ func (e *Engine) event(event Event) {
 }
 func (e *Engine) Devices(ctx context.Context) ([]Device, error) {
 	if e.demo {
-		return []Device{{Serial: "0x4A712118", Product: "Demo UNO Q", Path: "Demo USB hub"}, {Serial: "0x8ED963AB", Product: "Demo UNO Q", Path: "Demo USB hub"}, {Serial: "0xC2B2F977", Product: "Demo UNO Q", Path: "Demo USB hub"}}, nil
+		return []Device{{Serial: "0x4A712118", Product: "Simulated EDL board", Path: "Demo USB hub"}, {Serial: "0x8ED963AB", Product: "Simulated EDL board", Path: "Demo USB hub"}, {Serial: "0xC2B2F977", Product: "Simulated EDL board", Path: "Demo USB hub"}}, nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -79,8 +79,11 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 	if !slices.Contains([]string{"capture", "golden", "factory"}, r.Mode) {
 		return p, errors.New("Choose a capture or flashing workflow.")
 	}
-	if !slices.Contains([]string{"recommended", "blocks", "full", "readback"}, r.Strategy) {
+	if !slices.Contains([]string{"auto", "recommended", "hierarchical", "blocks", "full", "readback"}, r.Strategy) {
 		return p, errors.New("Unknown flashing strategy.")
+	}
+	if r.TargetContents != "" && r.TargetContents != "factory" && r.TargetContents != "similar" {
+		return p, errors.New("Unknown target contents expectation.")
 	}
 	if (r.Mode == "golden" || r.Mode == "capture") && !e.demo && !e.adapter.Caps.Golden {
 		return p, errors.New("This CLI does not support golden images. Use a compatible branch or choose a factory image.")
@@ -106,6 +109,7 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 				return p, errors.New("A local programmer cannot be combined with an online release or OS.")
 			}
 		}
+		p.Strategy, p.StrategyLabel, p.StrategyReason, p.Automatic = selectStrategy(r, 1, e.adapter.Caps)
 		p.Title = "Capture your configured board"
 		p.Explanation = "Read the complete Linux storage into an offline golden image. The source is not written."
 		p.Verification = "Source checksums"
@@ -125,6 +129,7 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 		}
 		p.Commands = append(p.Commands, append([]string{e.adapter.CLI}, args...))
 		p.Warnings = append(p.Warnings, "Shut Linux down cleanly before capture. The separate MCU firmware is not included.")
+		describeScale(r, &p)
 		return p, nil
 	}
 	seen := map[string]bool{}
@@ -158,6 +163,14 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 				return p, errors.New("Only the captured source is selected. Connect other boards to restore.")
 			}
 		}
+		caps := e.adapter.Caps
+		if e.demo {
+			caps.Digest = true
+			caps.Blocks = true
+		}
+		p.Strategy, p.StrategyLabel, p.StrategyReason, p.Automatic = selectStrategy(r, len(p.Targets), caps)
+		r.Strategy = p.Strategy
+
 		p.Title = "Restore your golden image"
 		p.Verification = "Complete readback verification"
 		p.Explanation = "Compare before writing; every captured sector is verified after changes."
@@ -175,14 +188,18 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 		if !e.adapter.Caps.Digest && !e.demo && r.Strategy != "readback" {
 			p.Warnings = append(p.Warnings, "The digest helper is unavailable. This plan uses full readback verification; build the helper to reduce USB traffic.")
 		}
-		if r.Strategy == "blocks" && !e.adapter.Caps.Blocks && !e.demo {
-			return p, errors.New("The selected CLI lacks single-pass block comparison. Choose Recommended or use a newer external CLI.")
+		if r.Strategy == "hierarchical" && !e.adapter.Caps.Digest && !e.demo {
+			return p, errors.New("Hierarchical comparison requires the digest helper. Choose Automatic or build the tools.")
+		}
+		if r.Strategy == "blocks" && (!e.adapter.Caps.Blocks || !e.adapter.Caps.Digest) && !e.demo {
+			return p, errors.New("Single-pass block comparison requires both a compatible CLI and the digest helper. Choose Automatic or build the tools.")
 		}
 		p.Commands = append(p.Commands, append([]string{e.adapter.CLI}, e.adapter.RestoreArgs(r, p.Targets)...))
 	} else {
+		p.Strategy, p.StrategyLabel, p.StrategyReason, p.Automatic = selectStrategy(r, len(p.Targets), e.adapter.Caps)
 		p.Title = "Install a factory image"
-		p.Verification = "QDL completion (not full-sector verification)"
-		p.Explanation = "Prepare the factory image once, then install its partitions on each selected board. Each target has private GPT working files."
+		p.Verification = "Factory installation (no full-sector verification)"
+		p.Explanation = "Prepare the factory image once, then install it on every selected board."
 		if r.Image != "" {
 			info, err := os.Stat(r.Image)
 			if err != nil {
@@ -218,6 +235,7 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 	}
 	p.Jobs = min(r.Jobs, len(p.Targets))
 	p.Warnings = append(p.Warnings, "Connect only the selected model. EDL serials cannot identify a board model; matching storage capacity gives consistent layouts.")
+	describeScale(r, &p)
 	return p, nil
 }
 func (e *Engine) Start(r Request) (string, error) {
@@ -274,6 +292,9 @@ func (e *Engine) Start(r Request) (string, error) {
 	e.log = log
 	ctx, cancel := context.WithCancel(context.Background())
 	e.cancel = cancel
+	if r.Mode == "golden" {
+		r.Strategy = plan.Strategy
+	}
 	go e.run(ctx, r, plan, dir)
 	return job, nil
 }
@@ -332,10 +353,13 @@ func (e *Engine) run(ctx context.Context, r Request, p Plan, dir string) {
 	_ = writeJSON(filepath.Join(dir, "request.json"), r)
 	_ = writeJSON(filepath.Join(dir, "results.json"), results)
 	for _, result := range results {
-		e.event(Event{Kind: "result", Serial: result.Serial, Status: result.Status, Elapsed: (time.Duration(result.Seconds) * time.Second).String(), Message: result.Error, Percent: 100})
+		e.event(Event{Kind: "result", Serial: result.Serial, Status: result.Status, Elapsed: (time.Duration(result.Seconds) * time.Second).String(), Message: result.Error, BytesWritten: result.BytesWritten, BytesSkipped: result.BytesSkipped, Percent: 100})
 	}
 	message := "Finished. Remove EDL jumpers and power-cycle completed boards."
 	status := "finished"
+	if r.Mode == "capture" {
+		message = "Golden image saved. Unplug the source board, then connect the new boards you want to restore with this image."
+	}
 	if err != nil {
 		message = err.Error()
 		status = "failed"

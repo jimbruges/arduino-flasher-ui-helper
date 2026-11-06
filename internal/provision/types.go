@@ -34,21 +34,28 @@ type Request struct {
 	Version        string   `json:"version"`
 	OS             string   `json:"os"`
 	Strategy       string   `json:"strategy"`
+	TargetContents string   `json:"targetContents"`
 	Jobs           int      `json:"jobs"`
 	TimeoutMinutes int      `json:"timeoutMinutes"`
 	Ready          bool     `json:"ready"`
 	Confirmed      bool     `json:"confirmed"`
 }
 type Plan struct {
-	Title        string     `json:"title"`
-	Explanation  string     `json:"explanation"`
-	Verification string     `json:"verification"`
-	Targets      []string   `json:"targets"`
-	Excluded     string     `json:"excluded"`
-	Jobs         int        `json:"jobs"`
-	Commands     [][]string `json:"commands"`
-	Warnings     []string   `json:"warnings"`
-	Bytes        uint64     `json:"bytes"`
+	DataScale      string     `json:"dataScale"`
+	Timing         string     `json:"timing"`
+	Strategy       string     `json:"strategy"`
+	StrategyLabel  string     `json:"strategyLabel"`
+	StrategyReason string     `json:"strategyReason"`
+	Automatic      bool       `json:"automatic"`
+	Title          string     `json:"title"`
+	Explanation    string     `json:"explanation"`
+	Verification   string     `json:"verification"`
+	Targets        []string   `json:"targets"`
+	Excluded       string     `json:"excluded"`
+	Jobs           int        `json:"jobs"`
+	Commands       [][]string `json:"commands"`
+	Warnings       []string   `json:"warnings"`
+	Bytes          uint64     `json:"bytes"`
 }
 type ImageInfo struct {
 	Path   string `json:"path"`
@@ -59,17 +66,20 @@ type ImageInfo struct {
 	Name   string `json:"name"`
 }
 type Event struct {
-	Job     string    `json:"job"`
-	Kind    string    `json:"kind"`
-	Serial  string    `json:"serial"`
-	Phase   string    `json:"phase"`
-	Percent float64   `json:"percent"`
-	Rate    string    `json:"rate"`
-	ETA     string    `json:"eta"`
-	Elapsed string    `json:"elapsed"`
-	Message string    `json:"message"`
-	Status  string    `json:"status"`
-	Time    time.Time `json:"time"`
+	Data         string    `json:"data"`
+	BytesWritten uint64    `json:"bytesWritten"`
+	BytesSkipped uint64    `json:"bytesSkipped"`
+	Job          string    `json:"job"`
+	Kind         string    `json:"kind"`
+	Serial       string    `json:"serial"`
+	Phase        string    `json:"phase"`
+	Percent      float64   `json:"percent"`
+	Rate         string    `json:"rate"`
+	ETA          string    `json:"eta"`
+	Elapsed      string    `json:"elapsed"`
+	Message      string    `json:"message"`
+	Status       string    `json:"status"`
+	Time         time.Time `json:"time"`
 }
 type Result struct {
 	Serial       string  `json:"serial"`

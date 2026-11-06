@@ -1,0 +1,7 @@
+Arduino Flasher UI Helper — Windows x64
+
+Extract this entire folder, keep tools beside the EXE, and open arduino-flasher-ui-helper.exe.
+Requires Microsoft Edge WebView2 Runtime and a QDL-compatible USB driver for boards in EDL mode.
+This preview is unsigned and has not been tested on Windows hardware.
+CLI and QDL are included. The accelerated digest helper is not yet packaged on Windows;
+golden restoration uses full USB readback verification instead.

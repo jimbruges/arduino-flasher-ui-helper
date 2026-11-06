@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,7 +23,7 @@ type Adapter struct {
 
 func NewAdapter(dir string) *Adapter {
 	dir, _ = filepath.Abs(dir)
-	a := &Adapter{CLI: filepath.Join(dir, "arduino-flasher-cli"), QDL: filepath.Join(dir, "qdl"), Digest: filepath.Join(dir, "qdl-digest")}
+	a := &Adapter{CLI: filepath.Join(dir, ToolName("arduino-flasher-cli")), QDL: filepath.Join(dir, ToolName("qdl")), Digest: filepath.Join(dir, ToolName("qdl-digest"))}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	help, err := exec.CommandContext(ctx, a.CLI, "--help").CombinedOutput()
@@ -44,7 +45,7 @@ func NewAdapter(dir string) *Adapter {
 }
 func executable(path string) bool {
 	f, err := os.Stat(path)
-	return err == nil && !f.IsDir() && f.Mode()&0111 != 0
+	return err == nil && !f.IsDir() && (runtime.GOOS == "windows" || f.Mode()&0111 != 0)
 }
 func (a *Adapter) GoldenArgs(action, board, image string) []string {
 	if a.Caps.BoardFirst {
@@ -161,4 +162,11 @@ func normalizeDevices(devices []Device) ([]Device, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Serial < out[j].Serial })
 	return out, nil
+}
+
+func ToolName(name string) string {
+	if runtime.GOOS == "windows" {
+		return name + ".exe"
+	}
+	return name
 }

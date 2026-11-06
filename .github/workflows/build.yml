@@ -1,10 +1,12 @@
 name: Native desktop builds
+permissions:
+  contents: read
 on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     strategy:
       matrix:
-        os: [macos-14, ubuntu-24.04]
+        os: [macos-14, ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -20,9 +22,20 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install libusb libxml2 pkg-config
       - run: go test -race ./internal/...
+      - name: Windows cancellation test
+        if: runner.os == 'Windows'
+        run: go test ./internal/provision -run TestWindowsCancellation
       - run: scripts/build-tools.sh
+        shell: bash
       - run: scripts/build.sh
+        shell: bash
+      - name: Package downloadable builds
+        run: scripts/package.sh
+        shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: arduino-flasher-ui-helper-${{ runner.os }}
-          path: build/
+          path: |
+            build/*.zip
+            build/*.tar.gz
+          if-no-files-found: error

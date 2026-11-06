@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Arduino Flasher UI Helper
+Comment=Capture and restore Arduino board images
+Exec=arduino-flasher-ui-helper
+Icon=arduino-flasher-ui-helper
+Terminal=false
+Categories=Utility;Development;
