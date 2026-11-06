@@ -77,10 +77,11 @@ in `app_windows_amd64.syso` so normal builds need no resource compiler.
   MCU firmware image is not included. A local Firehose programmer is optional.
   After capture, choose **Source unplugged — connect targets** to restore the
   same image to new boards. Unplug the source, put the targets in EDL mode and
-  connect them. The wizard keeps the image and model, excludes the source and
-  selects all discovered targets; review the selection before writing.
+  connect them. The wizard keeps the image and model, leaves the source unchecked and
+  selects the other discovered targets; review the selection before writing.
 - **Restore golden image:** choose that folder and select matching target
-  boards. The captured source is excluded automatically. Every source checksum
+  boards. The source is tagged **Golden device** and unchecked by default.
+  Tick its checkbox to restore it too. Every source checksum
   is checked before writing, and every captured sector is verified afterward.
   Use matching storage capacities for identical layouts.
 

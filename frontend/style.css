@@ -729,3 +729,5 @@ h1#homeTitle:focus{
 .image-size {font-size:18px; font-weight:600; color:var(--accent); margin:12px 0 4px;}
 .transfer-data {font-size:16px; font-weight:600; margin-top:12px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere;}
 #runScale {font-size:14px;}
+
+.golden-tag{display:inline-block;padding:3px 7px;border-radius:5px;background:#e5f2ee;color:#236451;font:600 11px system-ui;vertical-align:middle}

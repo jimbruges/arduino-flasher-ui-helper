@@ -151,8 +151,8 @@ func TestRestoreSourceOverride(t *testing.T) {
 		t.Fatalf("%v %v", p, err)
 	}
 	r.Targets = append(r.Targets, "0xABCDEF12")
-	if _, err := e.Plan(r); err == nil {
-		t.Fatal("Accepted source restoration with other targets")
+	if p, err := e.Plan(r); err != nil || len(p.Targets) != 2 {
+		t.Fatalf("Source and other board should both be selected: %v %v", p, err)
 	}
 	r.RestoreSource = false
 	r.Targets = []string{"0x12345678"}

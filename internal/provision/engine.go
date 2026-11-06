@@ -157,8 +157,8 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 				return p, fmt.Errorf("This image is for %s, not %s.", image.Board, r.Board)
 			}
 			if r.RestoreSource {
-				if len(p.Targets) != 1 || p.Targets[0] != image.Source {
-					return p, errors.New("Restore the golden source separately, selecting only that board.")
+				if !slices.Contains(p.Targets, image.Source) {
+					return p, errors.New("Source restoration requested without selecting the golden device.")
 				}
 				p.Warnings = append(p.Warnings, "The original golden source will be overwritten with this image.")
 			} else {
@@ -391,6 +391,9 @@ func (e *Engine) run(ctx context.Context, r Request, p Plan, dir string) {
 func (e *Engine) runGolden(ctx context.Context, r Request, p Plan) ([]Result, error) {
 	if r.Mode == "golden" {
 		args := append(e.adapter.GoldenArgs("flash", r.Board, r.Image), "--serial", strings.Join(p.Targets, ","), "--dry-run")
+		if r.RestoreSource {
+			args = append(args, "--restore-source")
+		}
 		e.event(Event{Kind: "phase", Phase: "Checking image", Message: "Validating every source checksum before writing."})
 		if _, err := runCommand(ctx, e.adapter.CLI, args, "", func(line string) { e.event(ProgressEvent(line, "image")) }); err != nil {
 			return nil, err
