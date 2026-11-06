@@ -103,30 +103,32 @@ function updateActions() {
   next.disabled = !ready || running; $('nextHint').textContent = hint;
   $('previous').textContent = step === 0 ? '← All tasks' : 'Back';
 }
+function targetDevices() {return devices.filter(device => device.serial !== excludedSource);}
 function renderDevices() {
   const root = $('devices'); root.replaceChildren();
   for (const device of devices) {
     const label = document.createElement('label'); label.className = 'device';
-    const input = document.createElement('input'); input.type = mode === 'capture' ? 'radio' : 'checkbox'; input.name = 'source'; input.checked = selected.has(device.serial); input.disabled = running;
+    const input = document.createElement('input'); input.type = mode === 'capture' ? 'radio' : 'checkbox'; input.name = 'source'; input.checked = selected.has(device.serial); input.disabled = running || device.serial === excludedSource;
     input.onchange = () => {selectionEdited = true; if (mode === 'capture') selected.clear(); input.checked ? selected.add(device.serial) : selected.delete(device.serial); renderDevices();};
     const div = document.createElement('div'), name = document.createElement('b'), detail = document.createElement('small');
-    name.textContent = device.serial; detail.textContent = device.product+(device.path ? ' · '+device.path : ''); div.append(name,detail); label.append(input,div); root.append(label);
+    name.textContent = device.serial; detail.textContent = device.serial === excludedSource ? 'Golden source — excluded from restore. Unplug it before connecting targets.' : device.product+(device.path ? ' · '+device.path : ''); div.append(name,detail); label.append(input,div); root.append(label);
   }
   if (!devices.length) {
     const div = document.createElement('div'); div.className = 'empty-state';
     const title = document.createElement('strong'), text = document.createElement('p');
     title.textContent = 'No boards detected yet'; text.textContent = 'Follow the EDL setup above, connect a USB data cable, then refresh devices.'; div.append(title,text); root.append(div);
   }
-  $('selectedCount').textContent = selected.size+' of '+devices.length+' selected';
-  $('selectAll').textContent = selected.size && selected.size === devices.length ? 'Clear selection' : 'Select all targets';
+  $('selectedCount').textContent = devices.length+' connected · '+selected.size+' of '+targetDevices().length+' targets selected';
+  $('selectAll').textContent = selected.size && selected.size === targetDevices().length ? 'Clear selection' : 'Select all targets';
   updateActions();
 }
 async function refresh() {
   if (running) return;
   const button = $('refresh'); button.disabled = true;
   try {
-    devices = (await api().Devices()).filter(device => device.serial !== excludedSource);
-    if (mode !== 'capture' && step === 2 && !selectionEdited) devices.forEach(device => selected.add(device.serial));
+    devices = await api().Devices();
+    selected.delete(excludedSource);
+    if (mode !== 'capture' && step === 2 && !selectionEdited) targetDevices().forEach(device => selected.add(device.serial));
     for (const serial of selected) if (!devices.some(device => device.serial === serial)) selected.delete(serial);
     renderDevices();
     // A refreshed list invalidates a prepared review if a target disconnected.
@@ -267,7 +269,7 @@ $('jobs').oninput = configureImage;
 $('browse').onclick = () => browse(mode === 'capture' ? 'save' : mode === 'golden' ? 'folder' : 'archive');
 $('folder').onclick = () => browse('folder'); $('chooseProgrammer').onclick = () => browse('programmer','programmer');
 $('guide').onclick = () => api().OpenGuide(board); $('logs').onclick = () => api().RevealLogs(); $('refresh').onclick = refresh;
-$('selectAll').onclick = () => {selectionEdited = true; if (selected.size && selected.size === devices.length) selected.clear(); else devices.forEach(device => selected.add(device.serial)); renderDevices();};
+$('selectAll').onclick = () => {selectionEdited = true; if (selected.size && selected.size === targetDevices().length) selected.clear(); else targetDevices().forEach(device => selected.add(device.serial)); renderDevices();};
 $('cancel').onclick = () => {if (confirm('Stop all active transfers? Interrupted boards may need to be flashed again.')) {$('cancel').disabled = true; $('cancel').textContent = 'Stopping…'; api().Cancel();}};
 $('newRun').onclick = () => {$('cancel').disabled = false; $('cancel').textContent = 'Stop operation'; showHome();};
 function restoreCapturedImage() {
@@ -288,7 +290,7 @@ async function smokeTest() {
     const demoDevices = await api().Devices(), goldenSource = demoDevices[0].serial;
     mode = 'capture'; board = 'unoq'; request = {image:'/demo/captured',source:goldenSource};
     restoreCapturedImage(); await refresh();
-    const captureHandoff = mode === 'golden' && board === 'unoq' && $('image').value === '/demo/captured' && step === 2 && excludedSource === goldenSource && !devices.some(device => device.serial === goldenSource) && !selected.has(goldenSource) && !$('ready').checked && selected.size === devices.length && $('connectIntro').textContent.includes('Unplug');
+    const captureHandoff = mode === 'golden' && board === 'unoq' && $('image').value === '/demo/captured' && step === 2 && excludedSource === goldenSource && devices.some(device => device.serial === goldenSource) && $('devices').querySelector('input').disabled && $('devices').textContent.includes('Golden source — excluded') && !selected.has(goldenSource) && !$('ready').checked && selected.size === targetDevices().length && $('connectIntro').textContent.includes('Unplug');
     begin('factory'); const boardRequired = $('next').disabled;
     document.querySelector('input[name=board][value=ventunoq]').click();
     const card = document.querySelector('input[name=board]:checked').closest('.board-card').getBoundingClientRect();
@@ -298,7 +300,7 @@ async function smokeTest() {
     const localNeedsImage = $('next').disabled;
     document.querySelector('input[name=factorySource][value=latest]').click();
     await advance(); await refresh();
-    const allTargetsSelected = devices.length > 0 && selected.size === devices.length;
+    const allTargetsSelected = devices.length > 0 && selected.size === targetDevices().length;
     $('devices').querySelector('input').click();
     const deselected = devices[0].serial; await refresh();
     const selectionSurvivesRefresh = !selected.has(deselected);
