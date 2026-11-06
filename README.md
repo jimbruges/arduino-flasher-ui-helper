@@ -181,9 +181,10 @@ scripts/build.sh
 ```
 
 The CI workflow builds on Mac, Ubuntu 24.04 and Windows and prepares
-Mac/Windows ZIPs and a Linux tarball. Public artifact uploads are disabled until
-corresponding GPL/LGPL sources and applicable relinking materials are supplied;
-then set repository variable `PUBLISH_BINARY_ARTIFACTS=true`.
+Mac/Windows ZIPs and a Linux tarball, uploaded as workflow artifacts. Each package
+includes `licenses/SOURCE.md` with links to the helper build commit, pinned CLI
+commit, QDL sources/build recipes and exact linked Go module versions. On Mac,
+this file is under `Contents/Resources/licenses/`.
 The archives preserve executable permissions.
 To package a local build, run `scripts/package.sh`. Linux builds use
 WebKitGTK 4.1. Mac bundles are ad-hoc signed for local use; public distribution
@@ -209,9 +210,10 @@ images or logs. Demo mode uses simulated devices and never calls hardware tools.
 The helper is GPL v3; dependencies and illustrations retain their own licenses.
 See `NOTICE.md`, `LICENSES` and `frontend/assets/ATTRIBUTION.md`. Builds include
 original license notices for linked Go modules and bundled flashing tools.
-Source-only publication and binary-release compliance are separate: binary
-releases still need corresponding GPL/LGPL source and applicable relinking
-materials alongside the executable downloads.
+Source is available at https://github.com/jimbruges/arduino-flasher-ui-helper.
+Packaged `SOURCE.md` links the revisions used for each build. The prebuilt QDL
+Mac ARM64 dependency recipe uses a moving branch; its exact historical dependency
+inputs remain unverified.
 
 ## Attribution
 

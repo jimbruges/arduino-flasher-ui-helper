@@ -30,8 +30,15 @@ and copyright notices; the helper license does not replace those terms.
   `frontend/assets/ATTRIBUTION.md` and `LICENSES/Arduino-docs-content.md`.
 
 License texts are in `LICENSES`. Binary packages include these notices and
-licenses under `licenses/` (inside Contents/Resources on Mac). Before publishing
-binary releases, provide the exact corresponding source and any required
-relinking materials for GPL/LGPL components alongside those releases. The pinned
-repositories, dependency checksums and build scripts identify the source inputs;
-a link to an upstream repository alone is not a substitute for that review.
+licenses under `licenses/` (inside Contents/Resources on Mac). `SOURCE.md` in
+that folder links the helper build commit, pinned CLI/digest sources, QDL v2.4,
+Arduino packaging patches/build recipes and versioned Go module source downloads.
+
+Helper source: https://github.com/jimbruges/arduino-flasher-ui-helper
+CLI fork: https://github.com/jimbruges/arduino-flasher-cli
+QDL build recipe: https://github.com/arduino/qdl-packing/tree/v2.4-26
+
+The prebuilt Mac ARM64 QDL recipe references crossbuild's moving `main` branch;
+its exact historical dependency inputs remain unverified. Source links and
+license notices do not themselves resolve any additional LGPL requirements
+for statically linked libraries.
