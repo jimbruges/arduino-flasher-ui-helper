@@ -51,7 +51,7 @@ function setStep(next) {
 }
 function begin(next) {
   if (running) return;
-  mode = next; board = ''; plan = null; furthest = 0; excludedSource = ''; imageLookup++; $('imageSize').classList.add('hidden');
+  $('restoreSource').checked = false; mode = next; board = ''; plan = null; furthest = 0; excludedSource = ''; imageLookup++; $('imageSize').classList.add('hidden');
   selected.clear(); selectionEdited = false;
   $('ready').checked = false; $('confirmed').checked = false;
   $('image').value = ''; $('programmer').value = ''; $('version').value = ''; $('os').value = '';
@@ -103,15 +103,16 @@ function updateActions() {
   next.disabled = !ready || running; $('nextHint').textContent = hint;
   $('previous').textContent = step === 0 ? '← All tasks' : 'Back';
 }
-function targetDevices() {return devices.filter(device => device.serial !== excludedSource);}
+function targetDevices() {return devices.filter(device => $('restoreSource').checked ? device.serial === excludedSource : device.serial !== excludedSource);}
 function renderDevices() {
   const root = $('devices'); root.replaceChildren();
+  $('sourceOverride').classList.toggle('hidden', mode !== 'golden' || !devices.some(device => device.serial === excludedSource));
   for (const device of devices) {
     const label = document.createElement('label'); label.className = 'device';
-    const input = document.createElement('input'); input.type = mode === 'capture' ? 'radio' : 'checkbox'; input.name = 'source'; input.checked = selected.has(device.serial); input.disabled = running || device.serial === excludedSource;
+    const input = document.createElement('input'); input.type = mode === 'capture' ? 'radio' : 'checkbox'; input.name = 'source'; input.checked = selected.has(device.serial); input.disabled = running || !targetDevices().some(target => target.serial === device.serial);
     input.onchange = () => {selectionEdited = true; if (mode === 'capture') selected.clear(); input.checked ? selected.add(device.serial) : selected.delete(device.serial); renderDevices();};
     const div = document.createElement('div'), name = document.createElement('b'), detail = document.createElement('small');
-    name.textContent = device.serial; detail.textContent = device.serial === excludedSource ? 'Golden source — excluded from restore. Unplug it before connecting targets.' : device.product+(device.path ? ' · '+device.path : ''); div.append(name,detail); label.append(input,div); root.append(label);
+    name.textContent = device.serial; detail.textContent = device.serial === excludedSource ? ($('restoreSource').checked ? 'Golden source — restoration explicitly enabled.' : 'Golden source — excluded from restore. Unplug it before connecting targets.') : device.product+(device.path ? ' · '+device.path : ''); div.append(name,detail); label.append(input,div); root.append(label);
   }
   if (!devices.length) {
     const div = document.createElement('div'); div.className = 'empty-state';
@@ -127,7 +128,7 @@ async function refresh() {
   const button = $('refresh'); button.disabled = true;
   try {
     devices = await api().Devices();
-    selected.delete(excludedSource);
+    if (!$('restoreSource').checked) selected.delete(excludedSource);
     if (mode !== 'capture' && step === 2 && !selectionEdited) targetDevices().forEach(device => selected.add(device.serial));
     for (const serial of selected) if (!devices.some(device => device.serial === serial)) selected.delete(serial);
     renderDevices();
@@ -150,7 +151,7 @@ async function inspectSelectedImage() {
   } catch (_) { /* Path validation is shown when continuing. */ }
 }
 function readRequest() {
-  return {mode,board,image:mode === 'factory' && !factoryLocal() ? '' : $('image').value.trim(),source:[...selected][0] || '',targets:[...selected],programmer:mode === 'capture' ? $('programmer').value.trim() : '',version:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('version').value.trim(),os:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('os').value.trim(),strategy:$('strategy').value,targetContents:$('targetContents').value,jobs:Number($('jobs').value),timeoutMinutes:Number($('timeout').value),ready:$('ready').checked,confirmed:$('confirmed').checked};
+  return {restoreSource:$('restoreSource').checked,mode,board,image:mode === 'factory' && !factoryLocal() ? '' : $('image').value.trim(),source:[...selected][0] || '',targets:[...selected],programmer:mode === 'capture' ? $('programmer').value.trim() : '',version:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('version').value.trim(),os:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('os').value.trim(),strategy:$('strategy').value,targetContents:$('targetContents').value,jobs:Number($('jobs').value),timeoutMinutes:Number($('timeout').value),ready:$('ready').checked,confirmed:$('confirmed').checked};
 }
 function summaryItem(label,value) {const div = document.createElement('div'), term = document.createElement('dt'), detail = document.createElement('dd'); term.textContent = label; detail.textContent = value; div.append(term,detail); return div;}
 async function review() {
@@ -264,11 +265,12 @@ document.querySelectorAll('input[name=board]').forEach(input => input.onchange =
 document.querySelectorAll('input[name=factorySource]').forEach(input => input.onchange = configureImage);
 document.querySelectorAll('[data-step]').forEach(button => button.onclick = () => {const target = Number(button.dataset.step); if (target < step && !running) {furthest = target; plan = null; setStep(target);}});
 $('changeTask').onclick = showHome; $('previous').onclick = () => {if (step === 0) showHome(); else {plan = null; furthest = step-1; setStep(step-1);}};
-$('next').onclick = advance; $('image').oninput = () => {updateActions(); inspectSelectedImage();}; $('ready').onchange = updateActions; $('confirmed').onchange = updateActions;
+$('next').onclick = advance; $('image').oninput = () => {$('restoreSource').checked = false; updateActions(); inspectSelectedImage();}; $('ready').onchange = updateActions; $('confirmed').onchange = updateActions;
 $('jobs').oninput = configureImage;
 $('browse').onclick = () => browse(mode === 'capture' ? 'save' : mode === 'golden' ? 'folder' : 'archive');
 $('folder').onclick = () => browse('folder'); $('chooseProgrammer').onclick = () => browse('programmer','programmer');
 $('guide').onclick = () => api().OpenGuide(board); $('logs').onclick = () => api().RevealLogs(); $('refresh').onclick = refresh;
+$('restoreSource').onchange = () => {selected.clear(); targetDevices().forEach(device => selected.add(device.serial)); selectionEdited = true; plan = null; renderDevices();};
 $('selectAll').onclick = () => {selectionEdited = true; if (selected.size && selected.size === targetDevices().length) selected.clear(); else targetDevices().forEach(device => selected.add(device.serial)); renderDevices();};
 $('cancel').onclick = () => {if (confirm('Stop all active transfers? Interrupted boards may need to be flashed again.')) {$('cancel').disabled = true; $('cancel').textContent = 'Stopping…'; api().Cancel();}};
 $('newRun').onclick = () => {$('cancel').disabled = false; $('cancel').textContent = 'Stop operation'; showHome();};

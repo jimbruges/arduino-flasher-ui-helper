@@ -25,6 +25,7 @@ type Status struct {
 	Job          string       `json:"job"`
 }
 type Request struct {
+	RestoreSource  bool     `json:"restoreSource"`
 	Mode           string   `json:"mode"`
 	Board          string   `json:"board"`
 	Image          string   `json:"image"`

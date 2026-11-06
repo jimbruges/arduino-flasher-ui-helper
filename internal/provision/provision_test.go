@@ -140,3 +140,23 @@ func TestFactoryBatchMixedResults(t *testing.T) {
 		t.Fatal("User factory image modified")
 	}
 }
+
+func TestRestoreSourceOverride(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "manifest.json"), []byte(`{"version":1,"board":"unoq","source_serial":"12345678","luns":[{"sector_size":512,"sectors":100}]}`), 0600)
+	e := &Engine{adapter: &Adapter{Caps: Capabilities{CLI: true, Golden: true, Digest: true}}}
+	r := Request{Mode: "golden", Board: "unoq", Image: root, Targets: []string{"0x12345678"}, Jobs: 16, TimeoutMinutes: 120, Strategy: "recommended", RestoreSource: true}
+	p, err := e.Plan(r)
+	if err != nil || len(p.Targets) != 1 || p.Excluded != "" || !strings.Contains(strings.Join(p.Commands[0], " "), "--restore-source") {
+		t.Fatalf("%v %v", p, err)
+	}
+	r.Targets = append(r.Targets, "0xABCDEF12")
+	if _, err := e.Plan(r); err == nil {
+		t.Fatal("Accepted source restoration with other targets")
+	}
+	r.RestoreSource = false
+	r.Targets = []string{"0x12345678"}
+	if _, err := e.Plan(r); err == nil {
+		t.Fatal("Accepted source restoration without override")
+	}
+}

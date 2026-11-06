@@ -156,9 +156,18 @@ func (e *Engine) Plan(r Request) (Plan, error) {
 			if image.Board != r.Board {
 				return p, fmt.Errorf("This image is for %s, not %s.", image.Board, r.Board)
 			}
-			p.Excluded = image.Source
+			if r.RestoreSource {
+				if len(p.Targets) != 1 || p.Targets[0] != image.Source {
+					return p, errors.New("Restore the golden source separately, selecting only that board.")
+				}
+				p.Warnings = append(p.Warnings, "The original golden source will be overwritten with this image.")
+			} else {
+				p.Excluded = image.Source
+			}
 			p.Bytes = image.Bytes
-			p.Targets = slices.DeleteFunc(p.Targets, func(s string) bool { return s == image.Source })
+			if !r.RestoreSource {
+				p.Targets = slices.DeleteFunc(p.Targets, func(s string) bool { return s == image.Source })
+			}
 			if len(p.Targets) == 0 {
 				return p, errors.New("Only the captured source is selected. Connect other boards to restore.")
 			}

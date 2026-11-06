@@ -55,6 +55,9 @@ func (a *Adapter) GoldenArgs(action, board, image string) []string {
 }
 func (a *Adapter) RestoreArgs(r Request, targets []string) []string {
 	args := a.GoldenArgs("flash", r.Board, r.Image)
+	if r.RestoreSource {
+		args = append(args, "--restore-source")
+	}
 	args = append(args, "--serial", strings.Join(targets, ","), "--jobs", strconv.Itoa(r.Jobs), "--timeout", strconv.Itoa(r.TimeoutMinutes)+"m")
 	if r.Strategy != "readback" && a.Caps.Digest {
 		args = append(args, "--verification", "digest", "--digest-qdl", a.Digest)
