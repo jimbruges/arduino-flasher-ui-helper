@@ -1,0 +1,4 @@
+[submodule "vendor/arduino-flasher-cli"]
+	path = external/arduino-flasher-cli
+	url = https://github.com/jimbruges/arduino-flasher-cli.git
+	branch = feature/golden-image-cloning
