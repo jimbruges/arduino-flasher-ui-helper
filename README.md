@@ -9,7 +9,7 @@ independent helper, not an official Arduino application.
 1. Install Go 1.25.8 or newer, Git and native build dependencies:
    - **Mac:** install Xcode command-line tools (`xcode-select --install`), then
      `brew install go libusb libxml2 pkg-config`.
-   - **Windows x64:** install Go and Git for Windows, then run these build
+   - **Windows x64:** install Go, Python 3 and Git for Windows, then run these build
      commands in Git Bash. WebView2 and a QDL-compatible USB driver are needed
      to run the application. The Windows build uses readback verification.
    - **Ubuntu 24.04:** install Go, then
@@ -52,7 +52,7 @@ build/arduino-flasher-ui-helper-linux-amd64/arduino-flasher-ui-helper --demo
   QDL-compatible USB driver for EDL devices. This preview includes CLI/QDL but
   uses complete USB readback verification; the digest helper is not packaged.
   It has been cross-compiled, not run or hardware-tested on Windows.
-- **Linux:** build natively using Quick start, or use the Ubuntu CI artifact.
+- **Linux:** build natively using Quick start, or use the Ubuntu CI artifact once binary distribution is enabled.
   Runtime packages on Ubuntu 24.04 are `libgtk-3-0t64`, `libwebkit2gtk-4.1-0`,
   `libusb-1.0-0` and `libxml2`. USB permissions must allow access to EDL devices.
   Linux builds are configured in CI but have not yet been validated here.
@@ -180,8 +180,11 @@ go vet ./...
 scripts/build.sh
 ```
 
-The CI workflow builds on Mac, Ubuntu 24.04 and Windows, then uploads
-Mac/Windows ZIPs and a Linux tarball. The archives preserve executable permissions.
+The CI workflow builds on Mac, Ubuntu 24.04 and Windows and prepares
+Mac/Windows ZIPs and a Linux tarball. Public artifact uploads are disabled until
+corresponding GPL/LGPL sources and applicable relinking materials are supplied;
+then set repository variable `PUBLISH_BINARY_ARTIFACTS=true`.
+The archives preserve executable permissions.
 To package a local build, run `scripts/package.sh`. Linux builds use
 WebKitGTK 4.1. Mac bundles are ad-hoc signed for local use; public distribution
 would require signing and notarisation. Use `BUILD_DIGEST=0 scripts/build-tools.sh`
@@ -200,6 +203,15 @@ local user configuration directory's `arduino-flasher-ui-helper/runs`. Open them
 with the wizard's **Open saved run logs** button. Failed boards keep individual
 results; cancellation stops CLI/QDL process groups. The app does not upload
 images or logs. Demo mode uses simulated devices and never calls hardware tools.
+
+## Licensing
+
+The helper is GPL v3; dependencies and illustrations retain their own licenses.
+See `NOTICE.md`, `LICENSES` and `frontend/assets/ATTRIBUTION.md`. Builds include
+original license notices for linked Go modules and bundled flashing tools.
+Source-only publication and binary-release compliance are separate: binary
+releases still need corresponding GPL/LGPL source and applicable relinking
+materials alongside the executable downloads.
 
 ## Attribution
 

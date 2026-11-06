@@ -44,6 +44,7 @@ PLIST
   for tool in arduino-flasher-cli qdl qdl-digest; do
    if [ -f "$packaged/$tool" ]; then codesign --force --sign - "$packaged/$tool"; fi
   done
+  python3 scripts/package-notices.py "$app/Contents/Resources/licenses" "$app/Contents/MacOS/arduino-flasher-ui-helper" "$packaged/arduino-flasher-cli"
   python3 scripts/check-mac-bundle.py "$app" --update-minimum
   codesign --force --deep --sign - "$app"
   printf 'Built %s\n' "$app"
@@ -55,6 +56,7 @@ PLIST
   cp packaging/icons/app-icon.png "$package/app-icon.png"
   cp packaging/arduino-flasher-ui-helper.desktop "$package/arduino-flasher-ui-helper.desktop"
   if [ -d "$tools_dir" ]; then mkdir -p "$package/tools"; cp -R "$tools_dir"/. "$package/tools/"; fi
+  python3 scripts/package-notices.py "$package/licenses" "$package/arduino-flasher-ui-helper" "$package/tools/arduino-flasher-cli"
   printf 'Built %s\n' "$package"
  ;;
  windows)
@@ -63,6 +65,7 @@ PLIST
   CGO_ENABLED=0 $GO build -tags desktop,production -ldflags '-H windowsgui' -o "$package/arduino-flasher-ui-helper.exe" .
   if [ -d "$tools_dir" ]; then mkdir -p "$package/tools"; cp -R "$tools_dir"/. "$package/tools/"; fi
   cp packaging/WINDOWS.txt "$package/README.txt"
+  python3 scripts/package-notices.py "$package/licenses" "$package/arduino-flasher-ui-helper.exe" "$package/tools/arduino-flasher-cli.exe"
   printf 'Built %s\n' "$package"
  ;;
  *) echo 'Mac, Linux and Windows builds are supported.'  >&2; exit 1 ;;

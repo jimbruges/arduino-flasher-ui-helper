@@ -32,7 +32,9 @@ jobs:
       - name: Package downloadable builds
         run: scripts/package.sh
         shell: bash
+      # Source/relinking companions must be supplied before publishing binaries.
       - uses: actions/upload-artifact@v4
+        if: vars.PUBLISH_BINARY_ARTIFACTS == 'true'
         with:
           name: arduino-flasher-ui-helper-${{ runner.os }}
           path: |

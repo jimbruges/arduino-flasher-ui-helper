@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/*
+ * Copyright (C) 2010 The Android Open Source Project
+ */
+
+Upstream: https://github.com/linux-msm/qdl/blob/v2.4/sparse.h
+License text: Apache-2.0.txt
