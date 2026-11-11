@@ -6,6 +6,7 @@ const boardNames = {unoq:'UNO Q',ventunoq:'VENTUNO Q'};
 let mode = '', board = '', step = 0, furthest = 0, devices = [], status = {}, plan = null, request = null, running = false;
 const selected = new Set(), cards = new Map();
 let logs = [];
+let latestRelease = '';
 let portPoll = false, runGeneration = 0;
 const runDevices = new Map();
 let selectionEdited = false;
@@ -294,9 +295,25 @@ async function pollPorts() {
     if (generation === runGeneration) $('sortingStatus').textContent = 'USB monitoring unavailable: '+String(e)+'. Last known connections retained.';
   } finally { portPoll = false; }
 }
+function renderUpdate(info) {
+  latestRelease = info.latest;
+  $('updateNotice').classList.toggle('hidden', !info.available && info.comparable);
+  $('updateAvailable').textContent = info.available ? 'New '+(info.preview ? 'preview ' : '')+'version available: '+info.latest : !info.comparable ? 'Latest release: '+info.latest : '';
+  $('updateStatus').textContent = info.available ? 'Update available' : !info.comparable ? 'Latest release: '+info.latest+' (development build)' : 'Up to date';
+}
+async function checkUpdates() {
+  const button = $('checkUpdates');
+  if (button.disabled) return;
+  button.disabled = true; $('updateStatus').textContent = 'Checking GitHub…';
+  try {renderUpdate(await api().CheckUpdates()); $('updateStatus').title = '';}
+  catch (e) {$('updateStatus').textContent = 'Could not check updates. Try again later.'; $('updateStatus').title = String(e);}
+  finally {button.disabled = false;}
+}
 async function init() {
   try {
     status = await api().Status();
+    $('appVersion').textContent = 'App '+await api().AppVersion();
+    checkUpdates();
     $('connection').textContent = status.demo ? 'Demo devices' : status.capabilities.cli ? 'Tools ready' : 'Tools need building';
     $('demo').classList.toggle('hidden',!status.demo);
     if (!status.demo && !status.capabilities.cli) error(status.capabilities.problem);
@@ -312,6 +329,8 @@ document.querySelectorAll('[data-mode]').forEach(button => button.onclick = () =
 document.querySelectorAll('input[name=board]').forEach(input => input.onchange = () => {board = input.value; selected.clear(); selectionEdited = false; $('ready').checked = false; furthest = 0; configureImage(); guidance(); updateActions();});
 document.querySelectorAll('input[name=factorySource]').forEach(input => input.onchange = configureImage);
 document.querySelectorAll('[data-step]').forEach(button => button.onclick = () => {const target = Number(button.dataset.step); if (target < step && !running) {furthest = target; plan = null; setStep(target);}});
+$('checkUpdates').onclick = checkUpdates;
+$('viewRelease').onclick = () => api().OpenRelease(latestRelease).catch(error);
 $('changeTask').onclick = showHome; $('previous').onclick = () => {if (step === 0) showHome(); else {plan = null; furthest = step-1; setStep(step-1);}};
 $('next').onclick = advance; $('image').oninput = () => {updateActions(); inspectSelectedImage();}; $('ready').onchange = updateActions; $('confirmed').onchange = updateActions;
 $('jobs').oninput = configureImage;
@@ -337,6 +356,10 @@ window.addEventListener('DOMContentLoaded',init);
 
 async function smokeTest() {
   try {
+    renderUpdate({latest:'v99.0.0-preview.1',available:true,comparable:true,preview:true});
+    const updateNotification = !$('updateNotice').classList.contains('hidden') && $('updateAvailable').textContent.includes('v99.0.0-preview.1');
+    renderUpdate({latest:'v0.1.2-preview.1',available:false,comparable:true});
+    const noUpdateNotification = $('updateNotice').classList.contains('hidden') && $('updateStatus').textContent === 'Up to date';
     const homeVisible = !$('home').classList.contains('hidden') && $('wizard').classList.contains('hidden');
     const demoDevices = await api().Devices(), goldenSource = demoDevices[0].serial;
     mode = 'capture'; board = 'unoq'; request = {image:'/demo/captured',source:goldenSource};
@@ -390,7 +413,7 @@ async function smokeTest() {
     const portAssignments = cards.get(first.serial).el.textContent.includes(first.path) && $('planTargets').textContent.includes(first.path);
     $('unplugHistory').replaceChildren();
     running = false; cards.clear(); $('progressCards').replaceChildren();
-    window.uxChecks = {resetIgnored,failedBoardIdentified,reconnectIdentified,portAssignments,goldenSelectable,transferCounter,phaseResetsData,captureHandoff,homeVisible,boardRequired,largeSelector,localNeedsImage,allTargetsSelected,selectionSurvivesRefresh,targetsRequired,oneSource,checklistRequired,confirmationRequired,noHorizontalOverflow:document.documentElement.scrollWidth <= window.innerWidth};
+    window.uxChecks = {updateNotification,noUpdateNotification,resetIgnored,failedBoardIdentified,reconnectIdentified,portAssignments,goldenSelectable,transferCounter,phaseResetsData,captureHandoff,homeVisible,boardRequired,largeSelector,localNeedsImage,allTargetsSelected,selectionSurvivesRefresh,targetsRequired,oneSource,checklistRequired,confirmationRequired,noHorizontalOverflow:document.documentElement.scrollWidth <= window.innerWidth};
     if (!Object.values(window.uxChecks).every(Boolean)) throw new Error('UX checks failed: '+JSON.stringify(window.uxChecks));
     $('confirmed').checked = true; updateActions(); await advance();
   } catch (e) {await api().ReportUISmoke(JSON.stringify({stage:'failed',success:false,error:String(e),uxChecks:window.uxChecks}));}

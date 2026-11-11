@@ -736,3 +736,5 @@ h1#homeTitle:focus{
 .port-presence { font-weight:600; }
 .progress-card.usb-removed { outline:3px solid #c87818; }
 #unplugHistory { max-height:220px; overflow:auto; overflow-wrap:anywhere; }
+
+#updateStatus { display:block; font-size:12px; margin-top:4px; }

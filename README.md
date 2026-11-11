@@ -195,6 +195,22 @@ the full storage capacity. After preparation, the run displays the total declare
 programming ranges per board and batch when the XML provides numeric sizes;
 sparse images and GPT adjustments can change the actual USB bytes.
 
+## App updates
+
+The app checks published GitHub releases once at startup. Use **Check for updates**
+in the footer to check again. A newer version shows a banner with **View release**,
+which opens its GitHub download page. Updates are downloaded and installed manually;
+a failed or offline check does not affect flashing.
+
+Preview builds follow both preview and stable releases; stable builds check stable
+releases. The checker compares version numbers rather than publication dates.
+Build scripts embed the release tag from `VERSION` in every platform's executable.
+Set `APP_VERSION` to override it when packaging another tag. Direct `go build`
+executables identify themselves as development builds.
+
+Update checks contact GitHub's public API without a login and send the app version
+in the request's User-Agent. Board serials, images and run logs are not sent.
+
 ## Build and test
 
 ```sh

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jimbruges/arduino-flasher-ui-helper/internal/provision"
+	"github.com/jimbruges/arduino-flasher-ui-helper/internal/updates"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -46,6 +47,21 @@ func (a *App) ReportUISmoke(report string) error {
 		return nil
 	}
 	return os.WriteFile(a.smokeReport, []byte(report), 0600)
+}
+func (a *App) AppVersion() string { return updates.BuildVersion() }
+func (a *App) CheckUpdates() (updates.Info, error) {
+	if a.smokeReport != "" {
+		return updates.Info{Current: updates.BuildVersion(), Latest: updates.BuildVersion(), Comparable: true}, nil
+	}
+	return updates.Check(a.ctx)
+}
+func (a *App) OpenRelease(tag string) error {
+	link, err := updates.ReleaseURL(tag)
+	if err != nil {
+		return err
+	}
+	runtime.BrowserOpenURL(a.ctx, link)
+	return nil
 }
 func (a *App) USBPaths() ([]string, error) {
 	if a.engine.Status().Demo {

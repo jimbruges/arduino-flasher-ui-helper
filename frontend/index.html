@@ -4,6 +4,7 @@
 <body>
 <header class="app-header"><div class="brand"><span class="logo" aria-hidden="true">↗</span><div><strong>Arduino Flasher UI Helper</strong><small>Prepare one board. Provision the whole workshop.</small></div></div><div class="header-actions"><span id="connection" class="pill">Starting…</span><button id="logs" class="text-button">Run logs ↗</button></div></header>
 <main>
+<div id="updateNotice" class="notice hidden" role="status"><strong id="updateAvailable"></strong> <button id="viewRelease" class="text-button">View release ↗</button></div>
 <div id="demo" class="notice hidden">Demo mode · simulated boards and progress. No hardware access.</div>
 <div id="error" role="alert" class="error hidden" tabindex="-1"></div>
 <section id="home" aria-labelledby="homeTitle">
@@ -37,5 +38,5 @@
 </div>
 <div id="wizardFooter" class="wizard-footer"><button id="previous">Back</button><label id="confirmLabel" class="check destructive hidden"><input type="checkbox" id="confirmed"><span>Replace the existing system and data on every listed target.</span></label><span id="nextHint" class="helper" aria-live="polite">Choose a board to continue.</span><button id="next" class="primary" disabled>Continue to image →</button></div>
 </section>
-</main><footer class="app-footer">Local desktop helper <span>Powered by Arduino Flasher CLI · No telemetry</span></footer><script src="app.js"></script>
+</main><footer class="app-footer"><div><span id="appVersion">Local desktop helper</span> · <button id="checkUpdates" class="text-button">Check for updates</button><span id="updateStatus" role="status"></span></div><span>Powered by Arduino Flasher CLI · No telemetry</span></footer><script src="app.js"></script>
 </body></html>

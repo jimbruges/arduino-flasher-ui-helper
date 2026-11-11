@@ -5,6 +5,7 @@ go 1.25.8
 require (
 	github.com/klauspost/compress v1.18.0
 	github.com/wailsapp/wails/v2 v2.11.0
+	golang.org/x/mod v0.23.0
 )
 
 require (

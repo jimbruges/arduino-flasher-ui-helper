@@ -3,6 +3,10 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 GO=${GO:-go}
+version=${APP_VERSION:-$(cat "$root/VERSION")}
+version_flags="-X github.com/jimbruges/arduino-flasher-ui-helper/internal/updates.Version=$version"
+bundle_version=${version#v}
+bundle_version=${bundle_version%%-*}
 os=$($GO env GOOS)
 arch=$($GO env GOARCH)
 tools_dir=${TOOLS_DIR:-"$root/tools"}
@@ -11,8 +15,8 @@ case "$os" in
  darwin)
   app="$root/build/Arduino Flasher UI Helper.app"
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-  $GO build -tags desktop,production -o "$app/Contents/MacOS/arduino-flasher-ui-helper" .
-  cat > "$app/Contents/Info.plist" <<'PLIST'
+  $GO build -tags desktop,production -ldflags "$version_flags" -o "$app/Contents/MacOS/arduino-flasher-ui-helper" .
+  cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -21,8 +25,8 @@ case "$os" in
 <key>CFBundleIdentifier</key><string>cc.jimbruges.arduino-flasher-ui-helper</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleExecutable</key><string>arduino-flasher-ui-helper</string>
-<key>CFBundleVersion</key><string>2</string>
-<key>CFBundleShortVersionString</key><string>0.1.1</string>
+<key>CFBundleVersion</key><string>$bundle_version</string>
+<key>CFBundleShortVersionString</key><string>$bundle_version</string>
 <key>LSMinimumSystemVersion</key><string>12.0</string>
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
@@ -52,7 +56,7 @@ PLIST
  linux)
   package="build/arduino-flasher-ui-helper-linux-$arch"
   mkdir -p "$package"
-  $GO build -tags desktop,production,webkit2_41 -o "$package/arduino-flasher-ui-helper" .
+  $GO build -tags desktop,production,webkit2_41 -ldflags "$version_flags" -o "$package/arduino-flasher-ui-helper" .
   cp packaging/icons/app-icon.png "$package/app-icon.png"
   cp packaging/arduino-flasher-ui-helper.desktop "$package/arduino-flasher-ui-helper.desktop"
   if [ -d "$tools_dir" ]; then mkdir -p "$package/tools"; cp -R "$tools_dir"/. "$package/tools/"; fi
@@ -62,7 +66,7 @@ PLIST
  windows)
   package="build/arduino-flasher-ui-helper-windows-$arch"
   mkdir -p "$package"
-  CGO_ENABLED=0 $GO build -tags desktop,production -ldflags '-H windowsgui' -o "$package/arduino-flasher-ui-helper.exe" .
+  CGO_ENABLED=0 $GO build -tags desktop,production -ldflags "-H windowsgui $version_flags" -o "$package/arduino-flasher-ui-helper.exe" .
   if [ -d "$tools_dir" ]; then mkdir -p "$package/tools"; cp -R "$tools_dir"/. "$package/tools/"; fi
   cp packaging/WINDOWS.txt "$package/README.txt"
   python3 scripts/package-notices.py "$package/licenses" "$package/arduino-flasher-ui-helper.exe" "$package/tools/arduino-flasher-cli.exe"
