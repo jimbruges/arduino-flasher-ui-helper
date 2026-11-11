@@ -3,6 +3,7 @@ package provision
 import "time"
 
 type Device struct {
+	Slot    string `json:"slot,omitempty"`
 	Serial  string `json:"serial"`
 	Product string `json:"product"`
 	Path    string `json:"path"`
@@ -25,6 +26,7 @@ type Status struct {
 	Job          string       `json:"job"`
 }
 type Request struct {
+	Fixture        string   `json:"fixture,omitempty"`
 	RestoreSource  bool     `json:"restoreSource"`
 	Mode           string   `json:"mode"`
 	Board          string   `json:"board"`
@@ -67,6 +69,8 @@ type ImageInfo struct {
 	Name   string `json:"name"`
 }
 type Event struct {
+	Slot         string    `json:"slot,omitempty"`
+	Path         string    `json:"path,omitempty"`
 	Data         string    `json:"data"`
 	BytesWritten uint64    `json:"bytesWritten"`
 	BytesSkipped uint64    `json:"bytesSkipped"`
@@ -83,6 +87,8 @@ type Event struct {
 	Time         time.Time `json:"time"`
 }
 type Result struct {
+	Slot         string  `json:"slot,omitempty"`
+	Path         string  `json:"path,omitempty"`
 	Serial       string  `json:"serial"`
 	Status       string  `json:"status"`
 	Seconds      float64 `json:"seconds"`

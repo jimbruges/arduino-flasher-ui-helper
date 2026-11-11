@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jimbruges/arduino-flasher-ui-helper/internal/provision"
 	"github.com/wailsapp/wails/v2"
@@ -46,17 +47,35 @@ func (a *App) ReportUISmoke(report string) error {
 	}
 	return os.WriteFile(a.smokeReport, []byte(report), 0600)
 }
+func (a *App) USBPaths() ([]string, error) {
+	if a.engine.Status().Demo {
+		devices, err := a.engine.Devices(a.ctx)
+		paths := []string{}
+		for _, device := range devices {
+			paths = append(paths, device.Path)
+		}
+		return paths, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, 10*time.Second)
+	defer cancel()
+	return provision.USBPaths(ctx)
+}
 func (a *App) Devices() ([]provision.Device, error)             { return a.engine.Devices(a.ctx) }
 func (a *App) Image(path string) (provision.ImageInfo, error)   { return provision.InspectImage(path) }
 func (a *App) Plan(r provision.Request) (provision.Plan, error) { return a.engine.Plan(r) }
-func (a *App) Start(r provision.Request) (string, error)        { return a.engine.Start(r) }
-func (a *App) Cancel()                                          { a.engine.Cancel() }
+func (a *App) FixtureDevices(fixture string) ([]provision.Device, error) {
+	return a.engine.FixtureDevices(a.ctx, fixture)
+}
+func (a *App) Start(r provision.Request) (string, error) { return a.engine.Start(r) }
+func (a *App) Cancel()                                   { a.engine.Cancel() }
 func (a *App) Browse(kind string) (string, error) {
 	switch kind {
 	case "folder":
 		return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Choose a golden image or extracted factory image"})
 	case "save":
 		return runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{Title: "Save golden image in a new folder", DefaultFilename: "golden-image"})
+	case "fixture":
+		return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Title: "Choose calibrated USB fixture", Filters: []runtime.FileFilter{{DisplayName: "USB fixture", Pattern: "*.json"}}})
 	case "programmer":
 		return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Title: "Choose Firehose programmer", Filters: []runtime.FileFilter{{DisplayName: "Firehose programmer", Pattern: "*.elf"}}})
 	default:

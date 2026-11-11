@@ -90,6 +90,28 @@ For VENTUNO Q, bridge JCTL pins 1 and 2, apply external power first, and then
 connect USB data. Follow the official illustrations for each board. Remove the
 bridge and power-cycle completed boards after a run.
 
+## Identify finished boards by USB port
+
+Selection, review and result cards show each board's physical USB path. Choose an
+optional calibrated `fixture.json` on the Connect screen to also show your CLI
+slot labels (such as A01–A16). Calibrate the file using the bundled CLI's
+`fixture calibrate` command; keep hubs in their original upstream ports.
+
+After completion, keep the results screen open and unplug one board at a time.
+The removed board's card gains an amber outline, and the removal history shows
+its slot, serial, USB path and retained flash result. Separate successful boards
+from failed boards using those results. Reconnecting updates presence without
+clearing the flash result. Saved `results.json` files retain the original slot
+and path even when an operation fails or is cancelled.
+
+The app polls USB presence once per second and requires two missing snapshots.
+On macOS and Linux, it follows the physical port even if the board boots out of
+EDL. Windows uses the current USB device identity; a mode change can appear as a
+removal, and calibrated fixture labels are unsupported there. USB resets and
+unplugged hubs can also produce removal events, so keep hubs connected and wait
+for each event before removing the next board. A board already absent at the
+first post-run check is shown as not detected rather than a confirmed unplug.
+
 ## Fast batch settings
 
 The default is **16 parallel boards**, 120 minutes per operation and

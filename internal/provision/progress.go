@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var serialPrefix = regexp.MustCompile(`^\[(0x[0-9A-Fa-f]+|image)\]\s*(.*)$`)
+var serialPrefix = regexp.MustCompile(`^\[(?:[A-Za-z0-9_-]+\s+)?(0x[0-9A-Fa-f]+|image)\]\s*(.*)$`)
 var percentPattern = regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?)%`)
 var ratePattern = regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?\s*(?:MiB|KiB|GiB)/s)`)
 var elapsedPattern = regexp.MustCompile(`elapsed\s+([^|]+)`)

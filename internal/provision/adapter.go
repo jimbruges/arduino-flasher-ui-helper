@@ -55,6 +55,9 @@ func (a *Adapter) GoldenArgs(action, board, image string) []string {
 }
 func (a *Adapter) RestoreArgs(r Request, targets []string) []string {
 	args := a.GoldenArgs("flash", r.Board, r.Image)
+	if r.Fixture != "" {
+		args = append(args, "--fixture", r.Fixture)
+	}
 	if r.RestoreSource {
 		args = append(args, "--restore-source")
 	}
@@ -135,8 +138,15 @@ func NormalizeSerial(value string) (string, error) {
 var sourceSerial = regexp.MustCompile(`_SN:([0-9A-Fa-f]+)(?:[ _]|$)`)
 
 func (a *Adapter) Devices(ctx context.Context) ([]Device, error) {
+	return a.FixtureDevices(ctx, "")
+}
+func (a *Adapter) FixtureDevices(ctx context.Context, fixture string) ([]Device, error) {
 	if a.Caps.Golden {
-		out, err := exec.CommandContext(ctx, a.CLI, "golden", "devices").Output()
+		args := []string{"golden", "devices"}
+		if fixture != "" {
+			args = append(args, "--fixture", fixture)
+		}
+		out, err := exec.CommandContext(ctx, a.CLI, args...).Output()
 		if err != nil {
 			return nil, fmt.Errorf("EDL discovery: %w", err)
 		}

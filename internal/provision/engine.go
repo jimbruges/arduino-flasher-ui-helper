@@ -55,12 +55,15 @@ func (e *Engine) event(event Event) {
 	emit(event)
 }
 func (e *Engine) Devices(ctx context.Context) ([]Device, error) {
+	return e.FixtureDevices(ctx, "")
+}
+func (e *Engine) FixtureDevices(ctx context.Context, fixture string) ([]Device, error) {
 	if e.demo {
-		return []Device{{Serial: "0x4A712118", Product: "Simulated EDL board", Path: "Demo USB hub"}, {Serial: "0x8ED963AB", Product: "Simulated EDL board", Path: "Demo USB hub"}, {Serial: "0xC2B2F977", Product: "Simulated EDL board", Path: "Demo USB hub"}}, nil
+		return []Device{{Serial: "0x4A712118", Product: "Simulated EDL board", Path: "Demo USB hub / port 1"}, {Serial: "0x8ED963AB", Product: "Simulated EDL board", Path: "Demo USB hub / port 2"}, {Serial: "0xC2B2F977", Product: "Simulated EDL board", Path: "Demo USB hub / port 3"}}, nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	return e.adapter.Devices(ctx)
+	return e.adapter.FixtureDevices(ctx, fixture)
 }
 func (e *Engine) Plan(r Request) (Plan, error) {
 	p := Plan{Targets: []string{}, Commands: [][]string{}, Warnings: []string{}}
@@ -264,9 +267,10 @@ func (e *Engine) Start(r Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !e.demo {
+	snapshot := map[string]Device{}
+	{
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		devices, err := e.Devices(ctx)
+		devices, err := e.FixtureDevices(ctx, r.Fixture)
 		cancel()
 		if err != nil {
 			return "", err
@@ -274,6 +278,7 @@ func (e *Engine) Start(r Request) (string, error) {
 		connected := map[string]bool{}
 		for _, d := range devices {
 			connected[d.Serial] = true
+			snapshot[d.Serial] = d
 		}
 		for _, s := range plan.Targets {
 			if !connected[s] {
@@ -304,7 +309,7 @@ func (e *Engine) Start(r Request) (string, error) {
 	if r.Mode == "golden" {
 		r.Strategy = plan.Strategy
 	}
-	go e.run(ctx, r, plan, dir)
+	go e.run(ctx, r, plan, dir, snapshot)
 	return job, nil
 }
 func (e *Engine) Cancel() {
@@ -335,8 +340,12 @@ func (e *Engine) Stop() bool {
 		return false
 	}
 }
-func (e *Engine) run(ctx context.Context, r Request, p Plan, dir string) {
+func (e *Engine) run(ctx context.Context, r Request, p Plan, dir string, snapshot map[string]Device) {
 	e.event(Event{Kind: "started", Message: p.Title})
+	for _, serial := range p.Targets {
+		d := snapshot[serial]
+		e.event(Event{Kind: "assignment", Serial: serial, Slot: d.Slot, Path: d.Path})
+	}
 	var results []Result
 	var err error
 	if e.demo {
@@ -358,6 +367,11 @@ func (e *Engine) run(ctx context.Context, r Request, p Plan, dir string) {
 			}
 			results = append(results, Result{Serial: s, Status: status, Error: message})
 		}
+	}
+	for i := range results {
+		device := snapshot[results[i].Serial]
+		results[i].Path = device.Path
+		results[i].Slot = device.Slot
 	}
 	_ = writeJSON(filepath.Join(dir, "request.json"), r)
 	_ = writeJSON(filepath.Join(dir, "results.json"), results)
@@ -391,6 +405,9 @@ func (e *Engine) run(ctx context.Context, r Request, p Plan, dir string) {
 func (e *Engine) runGolden(ctx context.Context, r Request, p Plan) ([]Result, error) {
 	if r.Mode == "golden" {
 		args := append(e.adapter.GoldenArgs("flash", r.Board, r.Image), "--serial", strings.Join(p.Targets, ","), "--dry-run")
+		if r.Fixture != "" {
+			args = append(args, "--fixture", r.Fixture)
+		}
 		if r.RestoreSource {
 			args = append(args, "--restore-source")
 		}

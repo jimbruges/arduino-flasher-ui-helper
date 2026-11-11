@@ -6,6 +6,8 @@ const boardNames = {unoq:'UNO Q',ventunoq:'VENTUNO Q'};
 let mode = '', board = '', step = 0, furthest = 0, devices = [], status = {}, plan = null, request = null, running = false;
 const selected = new Set(), cards = new Map();
 let logs = [];
+let portPoll = false, runGeneration = 0;
+const runDevices = new Map();
 let selectionEdited = false;
 let excludedSource = '';
 let imageLookup = 0;
@@ -51,6 +53,7 @@ function setStep(next) {
 }
 function begin(next) {
   if (running) return;
+  runGeneration++; $('sorting').classList.add('hidden');
   mode = next; board = ''; plan = null; furthest = 0; excludedSource = ''; imageLookup++; $('imageSize').classList.add('hidden');
   selected.clear(); selectionEdited = false;
   $('ready').checked = false; $('confirmed').checked = false;
@@ -111,9 +114,9 @@ function renderDevices() {
     const input = document.createElement('input'); input.type = mode === 'capture' ? 'radio' : 'checkbox'; input.name = 'source'; input.checked = selected.has(device.serial); input.disabled = running;
     input.onchange = () => {selectionEdited = true; if (mode === 'capture') selected.clear(); input.checked ? selected.add(device.serial) : selected.delete(device.serial); renderDevices();};
     const div = document.createElement('div'), name = document.createElement('b'), detail = document.createElement('small');
-    name.textContent = device.serial;
+    name.textContent = (device.slot ? device.slot+' · ' : '')+device.serial;
     if (device.serial === excludedSource) {const tag = document.createElement('span'); tag.className = 'golden-tag'; tag.textContent = 'Golden device'; name.append(' ',tag);}
-    detail.textContent = device.serial === excludedSource ? 'Unchecked by default. Select to restore this board too.' : device.product+(device.path ? ' · '+device.path : ''); div.append(name,detail); label.append(input,div); root.append(label);
+    detail.textContent = (device.path ? 'USB port: '+device.path+' · ' : 'USB port unavailable · ')+(device.serial === excludedSource ? 'Unchecked by default. Select to restore this board too.' : device.product); div.append(name,detail); label.append(input,div); root.append(label);
   }
   if (!devices.length) {
     const div = document.createElement('div'); div.className = 'empty-state';
@@ -128,7 +131,7 @@ async function refresh() {
   if (running) return;
   const button = $('refresh'); button.disabled = true;
   try {
-    devices = await api().Devices();
+    devices = await api().FixtureDevices($('fixture').value.trim());
     if (mode !== 'capture' && step === 2 && !selectionEdited) devices.filter(device => device.serial !== excludedSource).forEach(device => selected.add(device.serial));
     for (const serial of selected) if (!devices.some(device => device.serial === serial)) selected.delete(serial);
     renderDevices();
@@ -151,7 +154,7 @@ async function inspectSelectedImage() {
   } catch (_) { /* Path validation is shown when continuing. */ }
 }
 function readRequest() {
-  return {restoreSource:mode === 'golden' && selected.has(excludedSource),mode,board,image:mode === 'factory' && !factoryLocal() ? '' : $('image').value.trim(),source:[...selected][0] || '',targets:[...selected],programmer:mode === 'capture' ? $('programmer').value.trim() : '',version:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('version').value.trim(),os:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('os').value.trim(),strategy:$('strategy').value,targetContents:$('targetContents').value,jobs:Number($('jobs').value),timeoutMinutes:Number($('timeout').value),ready:$('ready').checked,confirmed:$('confirmed').checked};
+  return {fixture:$('fixture').value.trim(),restoreSource:mode === 'golden' && selected.has(excludedSource),mode,board,image:mode === 'factory' && !factoryLocal() ? '' : $('image').value.trim(),source:[...selected][0] || '',targets:[...selected],programmer:mode === 'capture' ? $('programmer').value.trim() : '',version:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('version').value.trim(),os:mode === 'golden' || (mode === 'factory' && factoryLocal()) ? '' : $('os').value.trim(),strategy:$('strategy').value,targetContents:$('targetContents').value,jobs:Number($('jobs').value),timeoutMinutes:Number($('timeout').value),ready:$('ready').checked,confirmed:$('confirmed').checked};
 }
 function summaryItem(label,value) {const div = document.createElement('div'), term = document.createElement('dt'), detail = document.createElement('dd'); term.textContent = label; detail.textContent = value; div.append(term,detail); return div;}
 async function review() {
@@ -165,7 +168,7 @@ async function review() {
     $('planStats').replaceChildren(summaryItem('Board model',boardNames[board]),summaryItem(mode === 'capture' ? 'Source boards' : 'Targets & concurrency',plan.targets.length+' selected · '+plan.jobs+' parallel'),summaryItem(mode === 'capture' ? 'Save location' : 'Image',request.image || 'Latest official factory image'),summaryItem('Verification',plan.verification),summaryItem(mode === 'capture' ? 'Capture size' : 'Data to write',plan.dataScale),summaryItem(mode === 'capture' ? 'Estimated time' : 'Estimated total time',plan.timing));
     $('estimateNote').textContent = mode === 'golden' ? plan.targets.length > 1 ? 'Boards run concurrently and share USB bandwidth. Watch individual step ETAs below.' : 'Based on previous runs; matching boards can finish sooner.' : '';
     $('targetHeading').textContent = mode === 'capture' ? 'Source board (read only)' : 'Selected targets';
-    $('planTargets').replaceChildren(...plan.targets.map(serial => {const span = document.createElement('span'); span.textContent = serial; return span;}));
+    $('planTargets').replaceChildren(...plan.targets.map(serial => {const span = document.createElement('span'); const device = devices.find(d => d.serial === serial); span.textContent = (device?.slot ? device.slot+' · ' : '')+serial+(device?.path ? ' · USB port '+device.path : ''); return span;}));
     $('warnings').textContent = plan.warnings.join('\n'); $('warnings').classList.toggle('hidden',!plan.warnings.length);
     $('confirmed').checked = false; $('confirmLabel').classList.toggle('hidden',mode === 'capture');
     setStep(3);
@@ -184,14 +187,16 @@ async function advance() {
 }
 function newCard(serial) {
   const el = document.createElement('div'); el.className = 'progress-card'; el.dataset.status = 'queued';
-  const title = document.createElement('b'); title.textContent = serial;
+  const title = document.createElement('b'); title.textContent = (runDevices.get(serial)?.slot ? runDevices.get(serial).slot+' · ' : '')+serial;
   const state = document.createElement('span'); state.className = 'status'; state.textContent = 'Queued';
   const phase = document.createElement('p'); phase.textContent = 'Waiting to start';
   const bar = document.createElement('progress'); bar.max = 100; bar.setAttribute('aria-label','Progress for '+serial);
   const data = document.createElement('div'); data.className = 'transfer-data'; data.textContent = plan && plan.bytes ? formatBytes(plan.bytes)+' image' : 'Waiting for transfer';
   const metrics = document.createElement('div'); metrics.className = 'metrics';
-  el.append(title,state,phase,bar,data,metrics); $('progressCards').append(el);
-  const card = {el,state,phase,bar,data,metrics,activePhase:''}; cards.set(serial,card); return card;
+  const port = document.createElement('small'); port.className = 'port-assignment'; port.textContent = 'USB port: '+(runDevices.get(serial)?.path || devices.find(d => d.serial === serial)?.path || 'unavailable');
+  const connection = document.createElement('p'); connection.className = 'port-presence';
+  el.append(title,state,port,connection,phase,bar,data,metrics); $('progressCards').append(el);
+  const card = {el,title,port,state,phase,bar,data,metrics,connection,present:null,missing:0,activePhase:''}; cards.set(serial,card); return card;
 }
 function updateRunSummary() {
   const values = [...cards.values()].map(card => card.el.dataset.status);
@@ -205,6 +210,10 @@ async function start() {
   clearError();
   try {
     request.confirmed = $('confirmed').checked; $('next').disabled = true;
+    runGeneration++; runDevices.clear();
+    const snapshot = await api().FixtureDevices(request.fixture || '');
+    for (const serial of plan.targets) { const device = snapshot.find(d => d.serial === serial); if (!device) throw new Error(serial+' disconnected. Refresh and review again.'); runDevices.set(serial,{...device}); }
+    $('sorting').classList.add('hidden'); $('unplugHistory').replaceChildren();
     cards.clear(); $('progressCards').replaceChildren(); logs = []; $('liveLog').textContent = '';
     for (const serial of plan.targets) newCard(serial);
     $('captureHandoff').classList.add('hidden'); $('runScale').textContent = plan.dataScale+' · '+plan.timing; $('newRun').classList.add('hidden'); $('restoreCaptured').classList.add('hidden'); $('cancel').classList.remove('hidden'); $('cancel').disabled = false; $('cancel').textContent = 'Stop operation';
@@ -219,6 +228,7 @@ function event(e) {
   if (text) {logs.push(text); if (logs.length > 400) logs.shift(); $('liveLog').textContent = logs.join('\n');}
   if (e.serial && e.serial !== 'image') {
     const card = cards.get(e.serial) || newCard(e.serial);
+    if (e.kind === 'assignment') { runDevices.set(e.serial,{serial:e.serial,path:e.path,slot:e.slot}); card.title.textContent = (e.slot ? e.slot+' · ' : '')+e.serial; card.port.textContent = 'USB port: '+(e.path || 'unavailable'); }
     if (e.phase && e.kind !== 'log') card.phase.textContent = e.phase;
     if (e.kind === 'progress') {
       card.bar.value = e.percent;
@@ -239,12 +249,50 @@ function event(e) {
       $('handoffMessage').textContent = 'Unplug source '+request.source+'. Put the new '+boardNames[board]+' boards in EDL mode and connect them, then continue below. The source will be excluded from the target list.';
       if (!status.demo) api().Image(request.image).then(image => {if (mode === 'capture' && !running && $('image').value.trim() === request.image) $('runScale').textContent = formatBytes(image.bytes)+' image saved';}).catch(() => {});
     }
+    $('sorting').classList.remove('hidden');
+    $('sortingStatus').textContent = 'Checking USB ports…';
+    pollPorts();
     if (status.smoke) {
       const results = [...cards.values()].map(card => card.el.dataset.status);
       api().ReportUISmoke(JSON.stringify({stage:'finished',success:e.status === 'finished' && results.length === 3 && results.every(s => s === 'flashed'),results,title:document.title,devices:devices.length,uxChecks:window.uxChecks}));
     }
   }
   updateRunSummary();
+}
+function updatePortPresence(paths) {
+  const present = new Set(paths), changes = [];
+  for (const [serial, card] of cards) {
+    const path = runDevices.get(serial)?.path;
+    if (!path) { card.connection.textContent = 'USB port unavailable'; continue; }
+    const connected = present.has(path);
+    // Require two missing snapshots to avoid highlighting brief USB resets.
+    if (!connected && card.present === true && ++card.missing < 2) continue;
+    if (connected) card.missing = 0;
+    const previous = card.present;
+    card.present = connected;
+    card.connection.textContent = connected ? 'USB connected' : previous === true ? 'USB removed' : card.connection.textContent || 'USB not detected after flashing';
+    card.el.classList.toggle('usb-removed', !connected);
+    if (previous !== null && previous !== connected) {
+      const result = card.state.textContent;
+      const message = (connected ? 'Reconnected: ' : 'Removed: ')+(runDevices.get(serial)?.slot ? runDevices.get(serial).slot+' · ' : '')+serial+' · USB port '+path+' · '+result;
+      const item = document.createElement('li'); item.textContent = new Date().toLocaleTimeString()+' · '+message;
+      $('unplugHistory').prepend(item);
+      while ($('unplugHistory').children.length > 32) $('unplugHistory').lastChild.remove();
+      changes.push(message);
+    }
+  }
+  if (changes.length || !$('unplugHistory').children.length) $('sortingStatus').textContent = changes.length ? changes.join(' / ') : 'Watching USB ports. Flash results remain on each card.';
+}
+async function pollPorts() {
+  if (portPoll || running) return;
+  portPoll = true;
+  const generation = runGeneration;
+  try {
+    const paths = await api().USBPaths();
+    if (generation === runGeneration && !running && step === 4) updatePortPresence(paths);
+  } catch (e) {
+    if (generation === runGeneration) $('sortingStatus').textContent = 'USB monitoring unavailable: '+String(e)+'. Last known connections retained.';
+  } finally { portPoll = false; }
 }
 async function init() {
   try {
@@ -256,7 +304,7 @@ async function init() {
     window.runtime.EventsOn('provision:event',event);
     for(const option of $('strategy').options){if(option.value==='hierarchical')option.disabled=!status.demo&&!status.capabilities.digest;if(option.value==='blocks')option.disabled=!status.demo&&(!status.capabilities.digest||!status.capabilities.blocks);}
     setInterval(() => {if (!running && mode && (step === 2 || step === 3)) refresh();},10000);
-    setInterval(() => {if (running) updateRunSummary();},1000);
+    setInterval(() => {if (running) updateRunSummary(); else if (mode && step === 4 && batchFinished) pollPorts();},1000);
     if (status.smoke) await smokeTest();
   } catch (e) {error(e);}
 }
@@ -270,6 +318,8 @@ $('jobs').oninput = configureImage;
 $('browse').onclick = () => browse(mode === 'capture' ? 'save' : mode === 'golden' ? 'folder' : 'archive');
 $('folder').onclick = () => browse('folder'); $('chooseProgrammer').onclick = () => browse('programmer','programmer');
 $('guide').onclick = () => api().OpenGuide(board); $('logs').onclick = () => api().RevealLogs(); $('refresh').onclick = refresh;
+$('chooseFixture').onclick = async () => {await browse('fixture','fixture'); selectionEdited = false; selected.clear(); await refresh();};
+$('fixture').onchange = () => {selectionEdited = false; selected.clear(); refresh();};
 $('selectAll').onclick = () => {selectionEdited = true; if (selected.size && selected.size === targetDevices().length) selected.clear(); else targetDevices().forEach(device => selected.add(device.serial)); renderDevices();};
 $('cancel').onclick = () => {if (confirm('Stop all active transfers? Interrupted boards may need to be flashed again.')) {$('cancel').disabled = true; $('cancel').textContent = 'Stopping…'; api().Cancel();}};
 $('newRun').onclick = () => {$('cancel').disabled = false; $('cancel').textContent = 'Stop operation'; showHome();};
@@ -323,8 +373,24 @@ async function smokeTest() {
     const transferCounter = progressCard.data.textContent === '4.2 GiB / 14.60 GiB written' && progressCard.metrics.textContent.includes('2m elapsed');
     event({kind:'progress',serial:progressSerial,phase:'verify digests',percent:0});
     const phaseResetsData = progressCard.data.textContent === 'Waiting for progress';
+    runDevices.clear(); devices.forEach(d => runDevices.set(d.serial,{...d}));
+    cards.clear(); $('progressCards').replaceChildren();
+    devices.forEach(d => newCard(d.serial));
+    const first = devices[0], second = devices[1];
+    cards.get(first.serial).state.textContent = 'failed'; cards.get(first.serial).el.dataset.status = 'failed';
+    cards.get(second.serial).state.textContent = 'flashed'; cards.get(second.serial).el.dataset.status = 'flashed';
+    updatePortPresence(devices.map(d => d.path));
+    const remaining = devices.slice(1).map(d => d.path);
+    updatePortPresence(remaining);
+    const resetIgnored = cards.get(first.serial).present === true;
+    updatePortPresence(remaining);
+    const failedBoardIdentified = cards.get(first.serial).connection.textContent === 'USB removed' && $('unplugHistory').textContent.includes(first.serial) && $('unplugHistory').textContent.includes('failed') && cards.get(second.serial).present === true;
+    updatePortPresence(devices.map(d => d.path));
+    const reconnectIdentified = cards.get(first.serial).present === true && cards.get(first.serial).el.dataset.status === 'failed' && $('unplugHistory').textContent.includes('Reconnected');
+    const portAssignments = cards.get(first.serial).el.textContent.includes(first.path) && $('planTargets').textContent.includes(first.path);
+    $('unplugHistory').replaceChildren();
     running = false; cards.clear(); $('progressCards').replaceChildren();
-    window.uxChecks = {goldenSelectable,transferCounter,phaseResetsData,captureHandoff,homeVisible,boardRequired,largeSelector,localNeedsImage,allTargetsSelected,selectionSurvivesRefresh,targetsRequired,oneSource,checklistRequired,confirmationRequired,noHorizontalOverflow:document.documentElement.scrollWidth <= window.innerWidth};
+    window.uxChecks = {resetIgnored,failedBoardIdentified,reconnectIdentified,portAssignments,goldenSelectable,transferCounter,phaseResetsData,captureHandoff,homeVisible,boardRequired,largeSelector,localNeedsImage,allTargetsSelected,selectionSurvivesRefresh,targetsRequired,oneSource,checklistRequired,confirmationRequired,noHorizontalOverflow:document.documentElement.scrollWidth <= window.innerWidth};
     if (!Object.values(window.uxChecks).every(Boolean)) throw new Error('UX checks failed: '+JSON.stringify(window.uxChecks));
     $('confirmed').checked = true; updateActions(); await advance();
   } catch (e) {await api().ReportUISmoke(JSON.stringify({stage:'failed',success:false,error:String(e),uxChecks:window.uxChecks}));}

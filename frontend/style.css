@@ -731,3 +731,8 @@ h1#homeTitle:focus{
 #runScale {font-size:14px;}
 
 .golden-tag{display:inline-block;padding:3px 7px;border-radius:5px;background:#e5f2ee;color:#236451;font:600 11px system-ui;vertical-align:middle}
+
+.port-assignment { display:block; overflow-wrap:anywhere; margin-top:10px; }
+.port-presence { font-weight:600; }
+.progress-card.usb-removed { outline:3px solid #c87818; }
+#unplugHistory { max-height:220px; overflow:auto; overflow-wrap:anywhere; }
